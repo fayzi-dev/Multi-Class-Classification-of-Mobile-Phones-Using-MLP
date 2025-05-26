@@ -88,28 +88,64 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
+from torchmetrics import Accuracy
+
 # Train looooop
-num_epochs = 300
+num_epochs = 400
+
+loss_train_history = []
+acc_train_history = []
+
+loss_valid_history = []
+acc_valid_history = []
 
 for epoch in range(num_epochs):
     loss_train = AverageMeter()
+    acc_train = Accuracy(task='multiclass', num_classes=4)
     for i, (x_batch, y_batch) in enumerate(train_loader):
         yp = model(x_batch)
         loss = loss_fn(yp, y_batch)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-
         loss_train.update(loss.item())
+        acc_train(yp, y_batch)
 
     with torch.no_grad():
         loss_valid = AverageMeter()
+        acc_valid = Accuracy(task='multiclass', num_classes=4)
         for i, (x_batch, y_batch) in enumerate(valid_loader):
             yp = model(x_batch)
             loss = loss_fn(yp, y_batch)
             loss_valid.update(loss.item())
+            acc_valid(yp, y_batch)
+
+    loss_train_history.append(loss_train.avg)
+    acc_train_history.append(acc_train.compute())
+    loss_valid_history.append(loss_valid.avg)
+    acc_valid_history.append(acc_valid.compute())
 
     print(f'Epoch{epoch}')
-    print(f'Train Loss:{loss_train.avg}')
-    print(f'Valid Loss:{loss_valid.avg}')
+    print(f'Train Loss:{loss_train.avg}, Acc:{acc_train.compute()}')
+    print(f'Valid Loss:{loss_valid.avg}, Acc:{acc_valid.compute()}')
     print()
+
+# plot loss
+plt.plot(range(num_epochs), loss_train_history, 'r-', label='Train Loss')
+plt.plot(range(num_epochs), loss_valid_history, 'b-', label='Valid Loss')
+
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.grid(True)
+plt.legend()
+plt.show()
+
+# plot acc
+plt.plot(range(num_epochs), acc_train_history, 'r-', label='Train Accuracy')
+plt.plot(range(num_epochs), acc_valid_history, 'b-', label='Valid Accuracy')
+
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.grid(True)
+plt.legend()
+plt.show()
