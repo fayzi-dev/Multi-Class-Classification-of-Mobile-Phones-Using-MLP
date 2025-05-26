@@ -99,7 +99,7 @@ from torchmetrics import Accuracy
 
 model = model.to(device)
 # Train looooop
-num_epochs = 400
+num_epochs = 200
 
 loss_train_history = []
 acc_train_history = []
