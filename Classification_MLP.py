@@ -5,6 +5,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torch.testing._internal.common_quantization import AverageMeter
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    print("GPU name:", torch.cuda.get_device_name(0)) #GPU name: GeForce GTX 960M
+else:
+    print("No GPU available.")
+
+
 df = pd.read_csv('train.csv')
 # print(df.info())
 # print(df.head())
@@ -90,6 +97,7 @@ class AverageMeter(object):
 
 from torchmetrics import Accuracy
 
+model = model.to(device)
 # Train looooop
 num_epochs = 400
 
@@ -101,8 +109,10 @@ acc_valid_history = []
 
 for epoch in range(num_epochs):
     loss_train = AverageMeter()
-    acc_train = Accuracy(task='multiclass', num_classes=4)
+    acc_train = Accuracy(task='multiclass', num_classes=4).to(device)
     for i, (x_batch, y_batch) in enumerate(train_loader):
+        x_batch = x_batch.to(device)
+        y_batch = y_batch.to(device)
         yp = model(x_batch)
         loss = loss_fn(yp, y_batch)
         loss.backward()
@@ -113,17 +123,21 @@ for epoch in range(num_epochs):
 
     with torch.no_grad():
         loss_valid = AverageMeter()
-        acc_valid = Accuracy(task='multiclass', num_classes=4)
+        acc_valid = Accuracy(task='multiclass', num_classes=4).to(device)
         for i, (x_batch, y_batch) in enumerate(valid_loader):
+            x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
             yp = model(x_batch)
             loss = loss_fn(yp, y_batch)
             loss_valid.update(loss.item())
             acc_valid(yp, y_batch)
 
     loss_train_history.append(loss_train.avg)
-    acc_train_history.append(acc_train.compute())
+    acc_tr = acc_train.compute()
+    acc_train_history.append(acc_tr.item())
     loss_valid_history.append(loss_valid.avg)
-    acc_valid_history.append(acc_valid.compute())
+    acc_v = acc_valid.compute()
+    acc_valid_history.append(acc_v.item())
 
     print(f'Epoch{epoch}')
     print(f'Train Loss:{loss_train.avg}, Acc:{acc_train.compute()}')
@@ -150,10 +164,8 @@ plt.grid(True)
 plt.legend()
 plt.show()
 
-
-
-#save model
+# save model
 torch.save(model, 'model.pt')
-#load model
+# load model
 my_model = torch.load('model.pt')
 print(my_model)
