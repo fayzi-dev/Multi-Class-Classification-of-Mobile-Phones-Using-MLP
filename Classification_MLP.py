@@ -149,3 +149,11 @@ plt.ylabel('Accuracy')
 plt.grid(True)
 plt.legend()
 plt.show()
+
+
+
+#save model
+torch.save(model, 'model.pt')
+#load model
+my_model = torch.load('model.pt')
+print(my_model)
