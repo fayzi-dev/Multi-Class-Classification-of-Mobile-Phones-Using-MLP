@@ -77,7 +77,7 @@ yp = model(x_batch)
 # print(xxx)
 
 # loss & optimizer
-def loss_fn(yp, yt, gamma=2, alpha=0.25):
+def loss_fn(yp, yt, gamma=2., alpha=1.):
     weights = torch.ones(yp.shape[1]) * alpha
     weights = weights.to(yp.device)
     prob = F.softmax(yp, dim=1)
@@ -111,7 +111,7 @@ class AverageMeter(object):
 
 model = model.to(device)
 # Train looooop
-num_epochs = 250
+num_epochs = 350
 
 loss_train_history = []
 acc_train_history = []
