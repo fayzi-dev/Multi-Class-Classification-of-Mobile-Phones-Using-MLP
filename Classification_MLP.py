@@ -4,14 +4,15 @@ import torch.optim as optim
 import pandas as pd
 import matplotlib.pyplot as plt
 from torchmetrics import Accuracy, HingeLoss
+import torch.nn.functional as F
+
 from torch.testing._internal.common_quantization import AverageMeter
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
-    print("GPU name:", torch.cuda.get_device_name(0)) #GPU name: GeForce GTX 960M
+    print("GPU name:", torch.cuda.get_device_name(0))  # GPU name: GeForce GTX 960M
 else:
     print("No GPU available.")
-
 
 df = pd.read_csv('train.csv')
 # print(df.info())
@@ -67,12 +68,24 @@ model = nn.Sequential(nn.Linear(num_features, 64),
                       nn.Linear(32, num_classes))
 
 yp = model(x_batch)
+
+
 # print(yp[:2, :])
-xxx = torch.tensor([torch.numel(p) for p in model.parameters()])
+# xxx = torch.tensor([torch.numel(p) for p in model.parameters()])
+
+
 # print(xxx)
 
 # loss & optimizer
-loss_fn = HingeLoss(task='multiclass',num_classes=num_classes).to(device)
+def loss_fn(yp, yt, gamma=2, alpha=0.25):
+    weights = torch.ones(yp.shape[1]) * alpha
+    weights = weights.to(yp.device)
+    prob = F.softmax(yp, dim=1)
+    yp = (1 - prob) ** gamma * torch.log(prob)
+    return F.nll_loss(yp, yt, weight=weights)
+
+
+
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 # Class AverageMeter
@@ -96,8 +109,6 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-
-
 model = model.to(device)
 # Train looooop
 num_epochs = 250
@@ -115,7 +126,7 @@ for epoch in range(num_epochs):
         x_batch = x_batch.to(device)
         y_batch = y_batch.to(device)
         yp = model(x_batch)
-        loss = loss_fn(yp, y_batch)
+        loss = loss_fn(yp, y_batch).to(device)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
@@ -129,7 +140,7 @@ for epoch in range(num_epochs):
             x_batch = x_batch.to(device)
             y_batch = y_batch.to(device)
             yp = model(x_batch)
-            loss = loss_fn(yp, y_batch)
+            loss = loss_fn(yp, y_batch).to(device)
             loss_valid.update(loss.item())
             acc_valid(yp, y_batch)
 
