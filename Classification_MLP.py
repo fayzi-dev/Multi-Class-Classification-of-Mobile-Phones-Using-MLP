@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import matplotlib.pyplot as plt
+from torchmetrics import Accuracy, HingeLoss
 from torch.testing._internal.common_quantization import AverageMeter
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -71,7 +72,7 @@ xxx = torch.tensor([torch.numel(p) for p in model.parameters()])
 # print(xxx)
 
 # loss & optimizer
-loss_fn = nn.CrossEntropyLoss()
+loss_fn = HingeLoss(task='multiclass',num_classes=num_classes).to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 # Class AverageMeter
@@ -95,11 +96,11 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-from torchmetrics import Accuracy
+
 
 model = model.to(device)
 # Train looooop
-num_epochs = 2
+num_epochs = 250
 
 loss_train_history = []
 acc_train_history = []
