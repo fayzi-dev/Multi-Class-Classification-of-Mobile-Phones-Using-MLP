@@ -86,8 +86,8 @@ def loss_fn(yp, yt, gamma=2., alpha=1.):
 
 
 
-optimizer = optim.SGD(model.parameters(), lr=0.01)
-
+# optimizer = optim.SGD(model.parameters(), lr=0.01)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 # Class AverageMeter
 from torch.testing._internal.common_quantization import AverageMeter
 
@@ -111,7 +111,7 @@ class AverageMeter(object):
 
 model = model.to(device)
 # Train looooop
-num_epochs = 350
+num_epochs = 50
 
 loss_train_history = []
 acc_train_history = []
