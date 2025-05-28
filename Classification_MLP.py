@@ -87,7 +87,7 @@ def loss_fn(yp, yt, gamma=2., alpha=1.):
 
 
 # optimizer = optim.SGD(model.parameters(), lr=0.01)
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.001,betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
 # Class AverageMeter
 from torch.testing._internal.common_quantization import AverageMeter
 
