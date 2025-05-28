@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torchmetrics import Accuracy, HingeLoss
 import torch.nn.functional as F
+import os
 
 from torch.testing._internal.common_quantization import AverageMeter
 
@@ -69,7 +70,6 @@ model = nn.Sequential(nn.Linear(num_features, 64),
 
 yp = model(x_batch)
 
-
 # print(yp[:2, :])
 # xxx = torch.tensor([torch.numel(p) for p in model.parameters()])
 
@@ -77,17 +77,15 @@ yp = model(x_batch)
 # print(xxx)
 
 # loss & optimizer
-def loss_fn(yp, yt, gamma=2., alpha=1.):
-    weights = torch.ones(yp.shape[1]) * alpha
-    weights = weights.to(yp.device)
-    prob = F.softmax(yp, dim=1)
-    yp = (1 - prob) ** gamma * torch.log(prob)
-    return F.nll_loss(yp, yt, weight=weights)
+# def loss_fn(yp, yt, gamma=2., alpha=1.):
+#     weights = torch.ones(yp.shape[1]) * alpha
+#     weights = weights.to(yp.device)
+#     prob = F.softmax(yp, dim=1)
+#     yp = (1 - prob) ** gamma * torch.log(prob)
+#     return F.nll_loss(yp, yt, weight=weights)
+loss_fn = nn.CrossEntropyLoss()
 
-
-
-# optimizer = optim.SGD(model.parameters(), lr=0.01)
-optimizer = optim.Adam(model.parameters(), lr=0.001,betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+optimizer = optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999))
 # Class AverageMeter
 from torch.testing._internal.common_quantization import AverageMeter
 
@@ -111,7 +109,7 @@ class AverageMeter(object):
 
 model = model.to(device)
 # Train looooop
-num_epochs = 50
+num_epochs = 300
 
 loss_train_history = []
 acc_train_history = []
@@ -176,8 +174,36 @@ plt.grid(True)
 plt.legend()
 plt.show()
 
+
+# Save to directory
+def to_tensor(x):
+    return torch.tensor(x)
+
+
+# optim_save = 'adam'
+# torch.save(to_tensor(acc_train_history), f'save/{optim_save}-acc_train_history.pt')
+# torch.save(to_tensor(acc_valid_history), f'save/{optim_save}-acc_valid_history.pt')
+#
+# torch.save(to_tensor(loss_train_history), f'save/{optim_save}-loss_train_history.pt')
+# torch.save(to_tensor(loss_valid_history), f'save/{optim_save}-loss_valid_history.pt')
+
+
+# Comparison
+def Learning_curve_plot(x: str, y: str):
+    plt.figure(figsize=(8, 6))
+    for optim_save in ['sgd', 'sgd-m', 'sgd-nestrove', 'rms', 'adam']:
+        z =torch.load(f'save/{optim_save}-{x}-{y}.pt')
+        plt.plot(range(num_epochs), z, label=optim_save)
+        plt.xlabel('Epoch')
+        plt.ylabel(f'{x} {y}')
+        plt.grid(True)
+        plt.legend()
+        plt.show()
+
+
+Learning_curve_plot('loss', 'train')
 # save model
 torch.save(model, 'model.pt')
 # load model
 my_model = torch.load('model.pt')
-print(my_model)
+# print(my_model)
