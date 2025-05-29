@@ -85,7 +85,10 @@ yp = model(x_batch)
 #     return F.nll_loss(yp, yt, weight=weights)
 loss_fn = nn.CrossEntropyLoss()
 
-optimizer = optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999),weight_decay=0.001)
+optimizer = optim.Adam(model.parameters(),
+                       lr=0.001,
+                       betas=(0.9, 0.999),
+                       weight_decay=0.001)
 # Class AverageMeter
 from torch.testing._internal.common_quantization import AverageMeter
 
