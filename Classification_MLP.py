@@ -49,7 +49,7 @@ x_valid = (x_valid - mu) / std
 train_data = TensorDataset(x_train, y_train)
 train_loader = DataLoader(train_data, batch_size=20, shuffle=True)
 valid_data = TensorDataset(x_valid, y_valid)
-valid_loader = DataLoader(valid_data, batch_size=64, shuffle=True)
+valid_loader = DataLoader(valid_data, batch_size=20, shuffle=True)
 x_batch, y_batch = next(iter(train_loader))
 # model
 num_features = 20
@@ -57,23 +57,22 @@ num_classes = 4
 
 model = nn.Sequential(nn.Linear(num_features, 64),
                       nn.ReLU(),
-                      # nn.Dropout(p=0.2),
+                      nn.Dropout(p=0.2),
                       nn.Linear(64, 32),
                       nn.ReLU(),
-                      # nn.Dropout(p=0.2),
+                      nn.Dropout(p=0.2),
                       nn.Linear(32, num_classes))
 
 # Loss & Optimizer
 loss_fn = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(),
-                      lr=0.01,
-                      momentum=0.9,
-                      nesterov=True,
-                      weight_decay=1e-4)
-
+# optimizer = optim.SGD(model.parameters(),
+#                       lr=0.01,
+#                       momentum=0.9,
+#                       nesterov=True,
+#                       weight_decay=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Class AverageMeter
-
 class AverageMeter(object):
     def __init__(self):
         self.reset()
@@ -92,8 +91,6 @@ class AverageMeter(object):
 
 
 model = model.to(device)
-
-
 def train_one_epoch(model, train_loader, loss_fn, optimizer,epoch=None):
     model.train()
     loss_train = AverageMeter()
@@ -169,7 +166,6 @@ plt.ylabel('Accuracy')
 plt.grid(True)
 plt.legend()
 plt.show()
-
 
 # save model
 # torch.save(model, 'model.pt')
