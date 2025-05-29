@@ -2,12 +2,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
+from torch.utils.data import TensorDataset, DataLoader, random_split
 import matplotlib.pyplot as plt
 from torchmetrics import Accuracy, HingeLoss
 import torch.nn.functional as F
 import os
-
+from tqdm import tqdm
 from torch.testing._internal.common_quantization import AverageMeter
+from sklearn.model_selection import train_test_split
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
@@ -23,14 +25,12 @@ X = df.drop('price_range', axis=1)
 y = df['price_range']
 # print(X.head)
 
-
 # split dataset
-from sklearn.model_selection import train_test_split
 
-X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.3, random_state=42)
 
-print(X_train.shape, X_valid.shape)  # (1600, 20) (400, 20)
-print(y_train.shape, y_valid.shape)  # (1600,) (400,)
+# print(X_train.shape, X_valid.shape)  # (1600, 20) (400, 20)
+# print(y_train.shape, y_valid.shape)  # (1600,) (400,)
 
 x_train = torch.FloatTensor(X_train.values)
 y_train = torch.LongTensor(y_train.values)  # convert to integer
@@ -46,52 +46,33 @@ x_train = (x_train - mu) / std
 x_valid = (x_valid - mu) / std
 
 # Dataloader
-from torch.utils.data import DataLoader, TensorDataset
-
 train_data = TensorDataset(x_train, y_train)
-train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
-
-print(len(train_loader))  # 25
-x_batch, y_batch = next(iter(train_loader))
-print(x_batch.shape)  # torch.Size([64, 20])
-
+train_loader = DataLoader(train_data, batch_size=20, shuffle=True)
 valid_data = TensorDataset(x_valid, y_valid)
 valid_loader = DataLoader(valid_data, batch_size=64, shuffle=True)
-
+x_batch, y_batch = next(iter(train_loader))
 # model
 num_features = 20
 num_classes = 4
 
 model = nn.Sequential(nn.Linear(num_features, 64),
                       nn.ReLU(),
+                      # nn.Dropout(p=0.2),
                       nn.Linear(64, 32),
                       nn.ReLU(),
+                      # nn.Dropout(p=0.2),
                       nn.Linear(32, num_classes))
 
-yp = model(x_batch)
-
-# print(yp[:2, :])
-# xxx = torch.tensor([torch.numel(p) for p in model.parameters()])
-
-
-# print(xxx)
-
-# loss & optimizer
-# def loss_fn(yp, yt, gamma=2., alpha=1.):
-#     weights = torch.ones(yp.shape[1]) * alpha
-#     weights = weights.to(yp.device)
-#     prob = F.softmax(yp, dim=1)
-#     yp = (1 - prob) ** gamma * torch.log(prob)
-#     return F.nll_loss(yp, yt, weight=weights)
+# Loss & Optimizer
 loss_fn = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(),
+                      lr=0.01,
+                      momentum=0.9,
+                      nesterov=True,
+                      weight_decay=1e-4)
 
-optimizer = optim.Adam(model.parameters(),
-                       lr=0.001,
-                       betas=(0.9, 0.999),
-                       weight_decay=0.001)
+
 # Class AverageMeter
-from torch.testing._internal.common_quantization import AverageMeter
-
 
 class AverageMeter(object):
     def __init__(self):
@@ -111,29 +92,31 @@ class AverageMeter(object):
 
 
 model = model.to(device)
-# Train looooop
-num_epochs = 300
 
-loss_train_history = []
-acc_train_history = []
 
-loss_valid_history = []
-acc_valid_history = []
-
-for epoch in range(num_epochs):
+def train_one_epoch(model, train_loader, loss_fn, optimizer,epoch=None):
+    model.train()
     loss_train = AverageMeter()
     acc_train = Accuracy(task='multiclass', num_classes=4).to(device)
-    for i, (x_batch, y_batch) in enumerate(train_loader):
-        x_batch = x_batch.to(device)
-        y_batch = y_batch.to(device)
-        yp = model(x_batch)
-        loss = loss_fn(yp, y_batch).to(device)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        loss_train.update(loss.item())
-        acc_train(yp, y_batch)
+    with tqdm(train_loader, unit='batch') as pbar:
+        for x_batch, y_batch in pbar:
+            if epoch is not None:
+                pbar.set_description(f'Epoch {epoch}')
+            x_batch = x_batch.to(device)
+            y_batch = y_batch.to(device)
+            yp = model(x_batch)
+            loss = loss_fn(yp, y_batch).to(device)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            loss_train.update(loss.item())
+            acc_train(yp, y_batch).to(device)
+            pbar.set_postfix(loss=loss_train.avg, accuracy=100. * acc_train.compute().item())
+    return model, loss_train.avg, acc_train.compute().item()
 
+
+def evaluate(model, valid_loader, loss_fn):
+    model.eval()
     with torch.no_grad():
         loss_valid = AverageMeter()
         acc_valid = Accuracy(task='multiclass', num_classes=4).to(device)
@@ -143,19 +126,29 @@ for epoch in range(num_epochs):
             yp = model(x_batch)
             loss = loss_fn(yp, y_batch).to(device)
             loss_valid.update(loss.item())
-            acc_valid(yp, y_batch)
+            acc_valid(yp, y_batch).to(device)
+    return loss_valid.avg, acc_valid.compute().item()
 
-    loss_train_history.append(loss_train.avg)
-    acc_tr = acc_train.compute()
-    acc_train_history.append(acc_tr.item())
-    loss_valid_history.append(loss_valid.avg)
-    acc_v = acc_valid.compute()
-    acc_valid_history.append(acc_v.item())
 
-    print(f'Epoch{epoch}')
-    print(f'Train Loss:{loss_train.avg}, Acc:{acc_train.compute()}')
-    print(f'Valid Loss:{loss_valid.avg}, Acc:{acc_valid.compute()}')
-    print()
+# Train loop
+num_epochs = 100
+
+loss_train_history = []
+acc_train_history = []
+
+loss_valid_history = []
+acc_valid_history = []
+
+for epoch in range(num_epochs):
+    model, loss_train, acc_train = train_one_epoch(model, train_loader, loss_fn, optimizer,epoch)
+    loss_valid, acc_valid = evaluate(model, valid_loader, loss_fn)
+
+    loss_train_history.append(loss_train)
+    acc_train_history.append(acc_train)
+    loss_valid_history.append(loss_valid)
+    acc_valid_history.append(acc_valid)
+
+    print(f'Validation :Loss = {loss_valid:.4f}, Accuracy = {acc_valid:.4f}\n')
 
 # plot loss
 plt.plot(range(num_epochs), loss_train_history, 'r-', label='Train Loss')
@@ -178,33 +171,6 @@ plt.legend()
 plt.show()
 
 
-# Save to directory
-def to_tensor(x):
-    return torch.tensor(x)
-
-
-# optim_save = 'adam'
-# torch.save(to_tensor(acc_train_history), f'save/{optim_save}-acc_train_history.pt')
-# torch.save(to_tensor(acc_valid_history), f'save/{optim_save}-acc_valid_history.pt')
-#
-# torch.save(to_tensor(loss_train_history), f'save/{optim_save}-loss_train_history.pt')
-# torch.save(to_tensor(loss_valid_history), f'save/{optim_save}-loss_valid_history.pt')
-
-
-# Comparison
-def Learning_curve_plot(x: str, y: str):
-    plt.figure(figsize=(8, 6))
-    for optim_save in ['sgd', 'sgd-m', 'sgd-nestrove', 'rms', 'adam']:
-        z =torch.load(f'save/{optim_save}-{x}-{y}.pt')
-        plt.plot(range(num_epochs), z, label=optim_save)
-        plt.xlabel('Epoch')
-        plt.ylabel(f'{x} {y}')
-        plt.grid(True)
-        plt.legend()
-        plt.show()
-
-
-# Learning_curve_plot('loss', 'train')
 # save model
 # torch.save(model, 'model.pt')
 # load model
