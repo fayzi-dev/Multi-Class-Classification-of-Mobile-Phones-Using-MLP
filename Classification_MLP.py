@@ -57,20 +57,20 @@ num_classes = 4
 
 model = nn.Sequential(nn.Linear(num_features, 64),
                       nn.ReLU(),
-                      nn.Dropout(p=0.2),
+                      # nn.Dropout(p=0.2),
                       nn.Linear(64, 32),
                       nn.ReLU(),
-                      nn.Dropout(p=0.2),
+                      # nn.Dropout(p=0.2),
                       nn.Linear(32, num_classes))
 
 # Loss & Optimizer
 loss_fn = nn.CrossEntropyLoss()
-# optimizer = optim.SGD(model.parameters(),
-#                       lr=0.01,
-#                       momentum=0.9,
-#                       nesterov=True,
-#                       weight_decay=1e-4)
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.SGD(model.parameters(),
+                      lr=0.01,
+                      momentum=0.9,
+                      nesterov=True,
+                      weight_decay=1e-4)
+
 
 # Class AverageMeter
 class AverageMeter(object):
@@ -91,7 +91,9 @@ class AverageMeter(object):
 
 
 model = model.to(device)
-def train_one_epoch(model, train_loader, loss_fn, optimizer,epoch=None):
+
+
+def train_one_epoch(model, train_loader, loss_fn, optimizer, epoch=None):
     model.train()
     loss_train = AverageMeter()
     acc_train = Accuracy(task='multiclass', num_classes=4).to(device)
@@ -136,16 +138,22 @@ acc_train_history = []
 loss_valid_history = []
 acc_valid_history = []
 
+best_valid_loss = torch.inf
 for epoch in range(num_epochs):
-    model, loss_train, acc_train = train_one_epoch(model, train_loader, loss_fn, optimizer,epoch)
+    # train
+    model, loss_train, acc_train = train_one_epoch(model, train_loader, loss_fn, optimizer, epoch)
+    # validation
     loss_valid, acc_valid = evaluate(model, valid_loader, loss_fn)
+    print(f'Valid: Loss = {loss_valid:.4f}, Accuracy = {acc_valid:.2f}%\n')
+
+    if loss_valid < best_valid_loss:
+        torch.save(model.state_dict(), f'best_valid_{epoch}.pth')
+        best_valid_loss = loss_valid
 
     loss_train_history.append(loss_train)
     acc_train_history.append(acc_train)
     loss_valid_history.append(loss_valid)
     acc_valid_history.append(acc_valid)
-
-    print(f'Validation :Loss = {loss_valid:.4f}, Accuracy = {acc_valid:.4f}\n')
 
 # plot loss
 plt.plot(range(num_epochs), loss_train_history, 'r-', label='Train Loss')
